@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">biliup</string>
+    <string name="channel_recording">录制状态</string>
+    <string name="channel_upload">上传进度</string>
+    <string name="channel_alerts">提醒</string>
+    <string name="recording_notification_title">biliup 录制中</string>
+    <string name="stop_recording">停止录制</string>
+</resources>
