@@ -18,11 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.biliup.android.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -42,9 +42,8 @@ fun RoomListScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Icon(Icons.Outlined.LiveTv, null, modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
-                Spacer(Modifier.height(16.dp))
+                Text("📺", style = MaterialTheme.typography.displaySmall,
+                    modifier = Modifier.padding(bottom = 12.dp))
                 Text("还没有添加直播间", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 Text("点击右下角 + 添加", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
@@ -97,22 +96,39 @@ fun RoomCard(
     )
 
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // 封面背景
+            if (room.coverUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = "${room.coverUrl}@400w_250h",
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    contentScale = ContentScale.Crop,
+                )
+                Box(modifier = Modifier.fillMaxWidth().height(120.dp)
+                    .background(Color.Black.copy(alpha = 0.45f)))
+            }
+            Column(modifier = Modifier.padding(12.dp)) {
             // ── 第一行: 头像 + 信息 ──
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 头像 (带开播脉冲环)
                 Box(modifier = Modifier.size(44.dp)) {
-                    // 占位头像 — 显示首字母
-                    Box(
-                        modifier = Modifier.fillMaxSize().clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            (room.uname.ifEmpty { room.title.ifEmpty { room.roomId } }).take(1),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
+                    // 头像 — 优先封面URL, 回落首字母
+                    val avatarUrl = room.coverUrl.ifEmpty { room.faceUrl }
+                    if (avatarUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = "$avatarUrl@100w_100h",
+                            contentDescription = "头像",
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop,
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize().clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(room.uname.take(1).ifEmpty { room.roomId.take(1) },
+                            color = MaterialTheme.colorScheme.primary) }
                     }
                     if (room.isLive) {
                         Box(
@@ -222,6 +238,7 @@ fun RoomCard(
                 }
             }
         }
+        } // Box
     }
 
     // 编辑对话框

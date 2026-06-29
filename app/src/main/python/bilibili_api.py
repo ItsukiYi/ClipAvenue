@@ -121,6 +121,7 @@ class RoomInfo:
     title: str = ""
     cover: str = ""
     uname: str = ""
+    face_url: str = ""
     live_status: int = 0
     online: int = 0
     candidates: list = field(default_factory=list)
@@ -273,6 +274,7 @@ class BilibiliAPI:
                     info.title = room.get("title", "") or ""
                     info.cover = room.get("cover", "") or ""
                     info.uname = (anchor.get("base_info") or {}).get("uname", "") or ""
+            info.face_url = (anchor.get("base_info") or {}).get("face", "") or ""
                     info.error = ""  # 成功
 
                     if info.live_status == 1:

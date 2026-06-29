@@ -23,7 +23,7 @@ class MainViewModel : ViewModel() {
                         val title: String = "", val uname: String = "",
                         val isLive: Boolean = false, val isChecking: Boolean = false,
                         val autoRecord: Boolean = true, val isMonitored: Boolean = true,
-                        val qn: Int = 10000)
+                        val qn: Int = 10000, val coverUrl: String = "", val faceUrl: String = "")
 
     private var _ctx: Context? = null
     private var _polling = false; private var _pollInterval = 60_000L; private var _pollJob: Job? = null
