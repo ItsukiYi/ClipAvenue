@@ -274,7 +274,7 @@ class BilibiliAPI:
                     info.title = room.get("title", "") or ""
                     info.cover = room.get("cover", "") or ""
                     info.uname = (anchor.get("base_info") or {}).get("uname", "") or ""
-            info.face_url = (anchor.get("base_info") or {}).get("face", "") or ""
+                    info.face_url = (anchor.get("base_info") or {}).get("face", "") or ""
                     info.error = ""  # 成功
 
                     if info.live_status == 1:
