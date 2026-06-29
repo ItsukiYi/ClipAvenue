@@ -38,20 +38,22 @@ class RecordingService : Service() {
         startForeground(BiliupApp.NOTIFICATION_RECORDING_ID,
             buildNotification(roomTitle, "准备录制..."))
 
-        // 定期检查录制状态，更新通知
+        // 定期更新通知（显示实时指标）
         scope.launch {
             while (isActive) {
-                delay(15_000)
+                delay(10_000)
                 try {
                     val s = PythonBridge.getRecordingStatus(taskId)
-                    // 简单解析看是否还在录制
                     if (!s.contains("\"running\": true") && !s.contains("\"running\":true")) {
-                        updateNotification(roomTitle, "录制已停止")
+                        updateNotification(roomTitle, "已停止")
                         delay(5000); stopSelf(); break
                     }
-                    // 更新通知显示录制时长
-                    val dur = extractField(s, "duration_str") ?: extractField(s, "duration") ?: ""
-                    if (dur.isNotEmpty()) updateNotification(roomTitle, "录制中 $dur")
+                    val dur = extractField(s, "duration_str") ?: ""
+                    val spd = extractField(s, "speed_str") ?: ""
+                    val mb = extractField(s, "total_mb")?.toString() ?: ""
+                    val txt = if (spd.isNotEmpty() && mb.isNotEmpty())
+                        "⏱$dur  📶$spd  💾${mb}MB" else "录制中 $dur"
+                    updateNotification("🎬 $roomTitle", txt)
                 } catch (_: Exception) { break }
             }
         }

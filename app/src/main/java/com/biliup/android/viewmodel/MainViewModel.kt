@@ -203,7 +203,7 @@ class MainViewModel : ViewModel() {
                         if (title.isNotEmpty()) PythonBridge.dbUpdateRoom(room.roomId, room.platform, title, uname, if (live) 1 else 0)
                         updateRoom(room.copy(title = title.ifEmpty { room.title }, uname = uname.ifEmpty { room.uname }, isLive = live))
                         if (live && room.autoRecord && (prev == null || !prev.isLive) && !_tasks.value.any { it.roomId == room.roomId && it.isRunning }) {
-                            addLog("🔴 开播: ${title.ifEmpty { room.roomId }} → 自动录制"); startRecording(room)
+                            addLog("🔴 开播: ${title.ifEmpty { room.roomId }} → 自动录制"); notify(room, "🔴 ${room.uname.ifEmpty { room.roomId }} 开播了", title); startRecording(room)
                             _offlineDetected.remove(room.roomId)
                         }
                         // 下播检测: 首次→记录时间, 持续下播60s→停止录制
@@ -216,6 +216,7 @@ class MainViewModel : ViewModel() {
                                     addLog("⚪ ${room.roomId}: 疑似下播, 将在60s后确认")
                                 } else if (System.currentTimeMillis() - firstOff > 60_000) {
                                     addLog("⚪ ${room.roomId}: 确认下播, 停止录制")
+                                    notify(room, "⚪ ${room.uname.ifEmpty { room.roomId }} 下播了", room.title)
                                     stopRecording(recording)
                                     _offlineDetected.remove(room.roomId)
                                 }
@@ -244,7 +245,7 @@ class MainViewModel : ViewModel() {
                 val live = j.optInt("live_status", 0) == 1
                 updateRoom(room.copy(title = title.ifEmpty { room.title }, uname = uname.ifEmpty { room.uname }, isLive = live))
                 if (live && room.autoRecord && !_tasks.value.any { it.roomId == room.roomId && it.isRunning }) {
-                    addLog("🔴 开播: ${title.ifEmpty { room.roomId }} → 自动录制"); startRecording(room)
+                    addLog("🔴 开播: ${title.ifEmpty { room.roomId }} → 自动录制"); notify(room, "🔴 ${room.uname.ifEmpty { room.roomId }} 开播了", title); startRecording(room)
                 }
                 if (!live) {
                     val rec = _tasks.value.find { it.roomId == room.roomId && it.isRunning }
@@ -266,6 +267,23 @@ class MainViewModel : ViewModel() {
     fun setRoomMonitored(room: RoomItem, m: Boolean) { updateRoom(room.copy(isMonitored = m)) }
     fun setRoomQn(room: RoomItem, qn: Int) { updateRoom(room.copy(qn = qn)); addLog("${room.roomId}: 画质 → $qn") }
     fun deleteRoom(room: RoomItem) { _rooms.value = _rooms.value.filter { it.roomId != room.roomId }; PythonBridge.dbRemoveRoom(room.roomId, room.platform); addLog("已移除: ${room.title.ifEmpty { room.roomId }}") }
+
+    private fun notify(room: RoomItem, title: String, text: String) {
+        val ctx = _appContext ?: return
+        try {
+            val nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            val n = androidx.core.app.NotificationCompat.Builder(ctx, com.biliup.android.BiliupApp.CHANNEL_ALERTS)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setAutoCancel(true)
+                .setContentIntent(android.app.PendingIntent.getActivity(ctx, 0,
+                    android.content.Intent(ctx, com.biliup.android.MainActivity::class.java),
+                    android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT))
+                .build()
+            nm.notify(room.roomId.hashCode(), n)
+        } catch (_: Exception) {}
+    }
 
     // ─── 录制 (精简: 只管发指令+启动Service保活) ──────
 
