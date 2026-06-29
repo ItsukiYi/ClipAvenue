@@ -185,7 +185,11 @@ fun scanCats(root: File, roomMap: Map<String, MainViewModel.RoomItem>): List<Str
             if (files.isEmpty()) continue
             val rid = roomDir.name
             val room = roomMap[rid]
-            val name = room?.let { if (it.title.isNotEmpty()) it.title else rid } ?: rid
+            val name = room?.let {
+                if (it.uname.isNotEmpty()) it.uname
+                else if (it.title.isNotEmpty()) it.title
+                else rid
+            } ?: rid
             val cover = room?.coverUrl ?: ""
             result.add(StrmDir(name = name, path = roomDir.absolutePath, fileCount = files.size, files = files, coverUrl = cover))
         }
