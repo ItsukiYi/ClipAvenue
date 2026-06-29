@@ -269,7 +269,7 @@ class MainViewModel : ViewModel() {
     fun deleteRoom(room: RoomItem) { _rooms.value = _rooms.value.filter { it.roomId != room.roomId }; PythonBridge.dbRemoveRoom(room.roomId, room.platform); addLog("已移除: ${room.title.ifEmpty { room.roomId }}") }
 
     private fun notify(room: RoomItem, title: String, text: String) {
-        val ctx = _appContext ?: return
+        val ctx = _ctx ?: return
         try {
             val nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             val n = androidx.core.app.NotificationCompat.Builder(ctx, com.biliup.android.BiliupApp.CHANNEL_ALERTS)
