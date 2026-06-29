@@ -190,6 +190,7 @@ fun GridFileCard(file: RecordingFile, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SwipeableFileItem(
     file: RecordingFile,

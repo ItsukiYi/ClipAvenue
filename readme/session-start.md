@@ -1,17 +1,18 @@
 # Session Start — 开发上下文快速恢复
 
-## 当前任务
-1. QR 扫码登录 — B站 API 双层 code 解析修复 (待验证)
-2. 录制断连优化 — SSL + 超时 + 流地址刷新
-3. 画质选择 — 每个直播间独立设置
+## 当前任务 (最近一次改动)
+1. 文件管理器重做 — 按主播分类/列表&网格/左滑删除 (刚完成, 待编译验证)
+2. 房间UI重设计 — 封面背景+头像+脉冲动画+录制切换+编辑弹窗 (已完成)
+3. QR登录修复 — B站双层code解析 (已完成, 待实地验证)
 
-## 最近踩坑 (详见 lessons-learned.md)
-- B站 QR 轮询 API 改为双层 code 结构
-- Android 16 scoped storage 限制公共目录写入
-- urllib socket 模式在 Android 上不稳定
-- 录制文件损坏 — FLV mid-tag 切分 → 改成每连接一个文件
+## 最近踩坑
+- SwipeToDismissBox 需要 @OptIn(ExperimentalMaterial3Api::class)
+- Icons.Filled.LiveTv/Videocam 在当前Compose BOM版本不存在 → 用emoji替代
+- 文件预览黑屏 → 加了media3-extractor + 文件存在性检查
+- 冷启动房间标题消失 → 需从DB加载last-known title
 
 ## 待完成
-- 上传功能 (B站 web投稿已实现, 待测试)
-- 抖音支持
+- 上传功能端到端测试
+- 抖音直播支持 (参照 biliup douyin.rs)
+- FLV缩略图生成 (grid视图封面)
 - 弹幕录制
