@@ -2,25 +2,43 @@ package com.biliup.android.ui.screen
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.biliup.android.viewmodel.MainViewModel
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+
+data class StreamerDir(
+    val name: String,
+    val path: String,
+    val fileCount: Int,
+    val files: List<RecordingFile>,
+    val coverUrl: String = "",
+    val roomId: String = "",
+)
 
 data class RecordingFile(
     val name: String,
@@ -34,208 +52,212 @@ fun FileManagerScreen(
     viewModel: MainViewModel,
     scope: androidx.lifecycle.LifecycleCoroutineScope,
 ) {
-    val context = LocalContext.current
     val downloadDir by viewModel.downloadDir.collectAsState()
-    var files by remember { mutableStateOf(scanFiles(downloadDir)) }
-    var selectedFile by remember { mutableStateOf<RecordingFile?>(null) }
-    var showDeleteDialog by remember { mutableStateOf<RecordingFile?>(null) }
+    val context = LocalContext.current
+    var selectedDir by remember { mutableStateOf<StreamerDir?>(null) }
+    var isGridView by remember { mutableStateOf(false) }
+    var previewFile by remember { mutableStateOf<RecordingFile?>(null) }
 
-    // 进入页面时自动刷新
-    LaunchedEffect(downloadDir) {
-        files = scanFiles(downloadDir)
-    }
+    val categories = remember(downloadDir) { buildCategories(downloadDir) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // 标题栏
-        item {
+    if (selectedDir != null) {
+        // ─── 二级目录 ───
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 顶部栏
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "录播文件管理器",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                // 刷新按钮
-                IconButton(onClick = { files = scanFiles(downloadDir) }) {
-                    Icon(Icons.Filled.Refresh, "刷新")
+                IconButton(onClick = { selectedDir = null }) {
+                    Icon(Icons.Filled.ArrowBack, "返回")
+                }
+                Text(selectedDir!!.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                // 视图切换
+                IconButton(onClick = { isGridView = !isGridView }) {
+                    Icon(if (isGridView) Icons.Filled.List else Icons.Filled.GridView, "切换视图")
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = downloadDir,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${files.size} 个录播文件",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
 
-        if (files.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+            if (isGridView) {
+                LazyVerticalGrid(columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(selectedDir!!.files) { file -> GridFileCard(file) { previewFile = file } }
+                }
+            } else {
+                LazyColumn(contentPadding = PaddingValues(8.dp)) {
+                    items(selectedDir!!.files) { file ->
+                        SwipeableFileItem(
+                            file = file,
+                            onClick = { previewFile = file },
+                            onDelete = { File(file.path).delete(); selectedDir = null; selectedDir = buildCategoryFromDir(File(file.path).parentFile) },
+                            onOpen = {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(Uri.fromFile(File(file.path)), "video/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                try { context.startActivity(intent) }
+                                catch (_: Exception) { Toast.makeText(context, "无可用播放器", Toast.LENGTH_SHORT).show() }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        // ─── 一级目录: 按主播分类 ───
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("录播文件", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("${categories.size} 个分类", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+            }
+
+            if (categories.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("暂无录播文件", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+            }
+
+            LazyVerticalGrid(columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(categories) { cat ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable { selectedDir = cat },
+                        shape = RoundedCornerShape(12.dp),
                     ) {
-                        Icon(Icons.Outlined.VideoLibrary, null, modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
-                        Text("暂无录播文件", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("录制完成后会自动出现在这里", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)) {
+                            // 圆形头像
+                            Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center) {
+                                Text(cat.name.take(2), fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(cat.name, style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${cat.fileCount} 个文件", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        }
                     }
                 }
             }
         }
-
-        items(files) { file ->
-            FileCard(
-                file = file,
-                isExpanded = selectedFile == file,
-                onPlay = { selectedFile = file },
-                onSystemPlay = {
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(Uri.fromFile(File(file.path)), "video/*")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    try { context.startActivity(intent) } catch (_: Exception) {}
-                },
-                onDelete = { showDeleteDialog = file },
-            )
-        }
-
-        item { Spacer(Modifier.height(80.dp)) }
     }
 
     // 视频预览
-    if (selectedFile != null) {
+    if (previewFile != null) {
         VideoPlayerDialog(
-            filePath = selectedFile!!.path,
-            title = selectedFile!!.name,
-            onDismiss = { selectedFile = null },
-        )
-    }
-
-    // 删除确认
-    if (showDeleteDialog != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
-            title = { Text("删除文件") },
-            text = { Text("确定要删除 ${showDeleteDialog!!.name} 吗？") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        File(showDeleteDialog!!.path).delete()
-                        showDeleteDialog = null
-                        files = scanFiles(downloadDir)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) { Text("删除") }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = null }) { Text("取消") } },
+            filePath = previewFile!!.path,
+            title = previewFile!!.name,
+            onDismiss = { previewFile = null },
         )
     }
 }
 
 @Composable
-fun FileCard(
-    file: RecordingFile,
-    isExpanded: Boolean,
-    onPlay: () -> Unit,
-    onSystemPlay: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+fun GridFileCard(file: RecordingFile, onClick: () -> Unit) {
     val sizeStr = when {
-        file.size < 1024 -> "${file.size} B"
-        file.size < 1048576 -> "${file.size / 1024} KB"
-        file.size < 1073741824 -> "${"%.1f".format(file.size / 1048576.0)} MB"
-        else -> "${"%.2f".format(file.size / 1073741824.0)} GB"
+        file.size < 1048576 -> "${file.size / 1024}KB"
+        else -> "${"%.1f".format(file.size / 1048576.0)}MB"
     }
-    val dateStr = dateFormat.format(Date(file.lastModified))
+    val date = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(file.lastModified))
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Outlined.VideoFile, null, tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp))
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        file.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "$sizeStr · $dateStr",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    )
-                }
+    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(8.dp)) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            // 缩略图占位
+            Box(Modifier.fillMaxWidth().height(90.dp).clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = onPlay) {
-                    Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("预览")
+            Spacer(Modifier.height(6.dp))
+            Text(file.name, style = MaterialTheme.typography.labelSmall, maxLines = 2,
+                overflow = TextOverflow.Ellipsis)
+            Text("$sizeStr · $date", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+        }
+    }
+}
+
+@Composable
+fun SwipeableFileItem(
+    file: RecordingFile,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            if (it == SwipeToDismissBoxValue.EndToStart) { onDelete(); true }
+            else if (it == SwipeToDismissBoxValue.StartToEnd) { onOpen(); false }
+            else false
+        }
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            Row(Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.OpenInNew, "打开", tint = Color.White)
+                Icon(Icons.Filled.Delete, "删除", tint = Color(0xFFFF5252))
+            }
+        },
+    ) {
+        Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(file.name, style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val sizeStr = when {
+                    file.size < 1048576 -> "${file.size / 1024}KB"
+                    else -> "${"%.1f".format(file.size / 1048576.0)}MB"
                 }
-                OutlinedButton(onClick = onSystemPlay) {
-                    Icon(Icons.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("系统播放")
-                }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.error)
-                }
+                val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(file.lastModified))
+                Text("$sizeStr · $date", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
             }
         }
     }
 }
 
-fun scanFiles(dir: String): List<RecordingFile> {
-    val d = File(dir)
-    if (!d.exists() || !d.isDirectory) return emptyList()
+fun buildCategories(rootDir: String): List<StreamerDir> {
+    val root = File(rootDir)
+    if (!root.exists()) return emptyList()
+    return root.listFiles()?.filter { it.isDirectory && it.name != "biliup.db" }?.map { buildCategoryFromDir(it) }
+        ?.sortedByDescending { it.files.maxOfOrNull { f -> f.lastModified } ?: 0L }
+        ?: emptyList()
+}
 
+fun buildCategoryFromDir(dir: File): StreamerDir {
     val flvFiles = mutableListOf<RecordingFile>()
-    // 递归扫描目录
     fun scan(f: File) {
-        if (f.isDirectory) {
-            f.listFiles()?.forEach { scan(it) }
-        } else if (f.name.endsWith(".flv") || f.name.endsWith(".mp4") || f.name.endsWith(".ts")) {
-            flvFiles.add(RecordingFile(
-                name = f.name,
-                path = f.absolutePath,
-                size = f.length(),
-                lastModified = f.lastModified(),
-            ))
+        if (f.isDirectory) f.listFiles()?.forEach { scan(it) }
+        else if (f.name.endsWith(".flv") || f.name.endsWith(".mp4") || f.name.endsWith(".ts")) {
+            flvFiles.add(RecordingFile(f.name, f.absolutePath, f.length(), f.lastModified()))
         }
     }
-    scan(d)
-    // 按时间倒序
+    scan(dir)
     flvFiles.sortByDescending { it.lastModified }
-    return flvFiles
+    // Extract roomId from path (e.g., "bilibili/12345")
+    val parts = dir.absolutePath.split(File.separator)
+    val roomId = parts.getOrNull(parts.size - 1) ?: ""
+    val platform = parts.getOrNull(parts.size - 2) ?: ""
+    return StreamerDir(
+        name = dir.name.take(12),
+        path = dir.absolutePath,
+        fileCount = flvFiles.size,
+        files = flvFiles,
+        roomId = roomId,
+    )
 }
