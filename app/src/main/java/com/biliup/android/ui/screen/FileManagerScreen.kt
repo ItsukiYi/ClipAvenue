@@ -175,22 +175,34 @@ fun FileManagerScreen(
 
 fun scanCats(root: File, roomMap: Map<String, MainViewModel.RoomItem>): List<StrmDir> {
     if (!root.exists()) return emptyList()
-    return root.listFiles()?.filter { it.isDirectory }?.mapNotNull { dir ->
-        val files = mutableListOf<FlvFile>()
-        fun scan(f: File) {
-            if (f.isDirectory) f.listFiles()?.forEach { scan(it) }
-            else if (f.name.endsWith(".flv") || f.name.endsWith(".mp4") || f.name.endsWith(".ts"))
-                files.add(FlvFile(f.name, f.absolutePath, f.length(), f.lastModified()))
+    // 目录结构: root/platform/room_id/file.flv → 需要穿透平台层
+    val result = mutableListOf<StrmDir>()
+    val platforms = root.listFiles()?.filter { it.isDirectory } ?: return emptyList()
+    for (platformDir in platforms) {
+        val rooms = platformDir.listFiles()?.filter { it.isDirectory } ?: continue
+        for (roomDir in rooms) {
+            val files = scanFlv(roomDir)
+            if (files.isEmpty()) continue
+            val rid = roomDir.name
+            val room = roomMap[rid]
+            val name = room?.let { if (it.title.isNotEmpty()) it.title else rid } ?: rid
+            val cover = room?.coverUrl ?: ""
+            result.add(StrmDir(name = name, path = roomDir.absolutePath, fileCount = files.size, files = files, coverUrl = cover))
         }
-        scan(dir)
-        if (files.isEmpty()) return@mapNotNull null
-        files.sortByDescending { it.lastModified }
-        val rid = dir.name
-        val room = roomMap[rid]
-        val name = room?.let { if (it.title.isNotEmpty()) it.title else rid } ?: rid
-        val cover = room?.coverUrl ?: ""
-        StrmDir(name = name, path = dir.absolutePath, fileCount = files.size, files = files, coverUrl = cover)
-    }?.sortedByDescending { it.files.maxOfOrNull { f -> f.lastModified } ?: 0L } ?: emptyList()
+    }
+    return result.sortedByDescending { it.files.maxOfOrNull { f -> f.lastModified } ?: 0L }
+}
+
+fun scanFlv(dir: File): List<FlvFile> {
+    val files = mutableListOf<FlvFile>()
+    fun scan(f: File) {
+        if (f.isDirectory) f.listFiles()?.forEach { scan(it) }
+        else if (f.name.endsWith(".flv") || f.name.endsWith(".mp4") || f.name.endsWith(".ts"))
+            files.add(FlvFile(f.name, f.absolutePath, f.length(), f.lastModified()))
+    }
+    scan(dir)
+    files.sortByDescending { it.lastModified }
+    return files
 }
 
 fun fmtSize(s: Long) = when { s < 1048576 -> "${s / 1024}KB"; else -> "${"%.1f".format(s / 1048576.0)}MB" }
