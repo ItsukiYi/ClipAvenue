@@ -54,10 +54,6 @@ fun FileManagerScreen(
     val roomMap = remember(rooms) { rooms.associateBy { it.roomId } }
     val cats = remember(downloadDir, rooms) { scanCats(File(downloadDir), roomMap) }
 
-    // 强制刷新key
-    var refresh by remember { mutableIntStateOf(0) }
-    val key = "$downloadDir-$refresh"
-
     if (selDir != null) {
         val d = selDir!!
         Column(Modifier.fillMaxSize()) {
@@ -90,7 +86,7 @@ fun FileManagerScreen(
                     }
                 }
             } else {
-                LazyColumn(contentPadding = PaddingValues(8.dp), key = { key }) {
+                LazyColumn(contentPadding = PaddingValues(8.dp)) {
                     items(d.files, key = { it.path }) { f ->
                         Card(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                             Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -170,7 +166,7 @@ fun FileManagerScreen(
             title = { Text("确认删除") },
             text = { Text("删除 ${f.name}？不可恢复。") },
             confirmButton = { Button(onClick = {
-                File(f.path).delete(); delDialog = null; selDir = null; refresh++
+                File(f.path).delete(); delDialog = null; selDir = null
             }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("删除") } },
             dismissButton = { TextButton(onClick = { delDialog = null }) { Text("取消") } },
         )
