@@ -265,6 +265,7 @@ class MainViewModel : ViewModel() {
     }
     fun setRoomMonitored(room: RoomItem, m: Boolean) { updateRoom(room.copy(isMonitored = m)) }
     fun setRoomQn(room: RoomItem, qn: Int) { updateRoom(room.copy(qn = qn)); addLog("${room.roomId}: 画质 → $qn") }
+    fun deleteRoom(room: RoomItem) { _rooms.value = _rooms.value.filter { it.roomId != room.roomId }; PythonBridge.dbRemoveRoom(room.roomId, room.platform); addLog("已移除: ${room.title.ifEmpty { room.roomId }}") }
 
     // ─── 录制 (精简: 只管发指令+启动Service保活) ──────
 

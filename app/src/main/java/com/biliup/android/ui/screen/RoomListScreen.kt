@@ -1,16 +1,29 @@
 package com.biliup.android.ui.screen
 
+import android.widget.Toast
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.biliup.android.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -23,61 +36,47 @@ fun RoomListScreen(
     var showAddDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                Row(modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text("直播间管理", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    FilledTonalButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("添加")
-                    }
+        if (rooms.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(Icons.Outlined.LiveTv, null, modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                Spacer(Modifier.height(16.dp))
+                Text("还没有添加直播间", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                Text("点击右下角 + 添加", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = { showAddDialog = true }) {
+                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("添加直播间")
                 }
             }
-
-            if (rooms.isEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Column(modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("还没有添加直播间", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("点击「添加」输入 B站直播间链接", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                        }
-                    }
-                }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(rooms) { room -> RoomCard(room, viewModel, scope) }
+                item { Spacer(Modifier.height(80.dp)) }
             }
 
-            items(rooms) { room ->
-                RoomCard(room, viewModel, scope)
-            }
-        }
-
-        FloatingActionButton(
-            onClick = { showAddDialog = true },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = "添加直播间")
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+            ) { Icon(Icons.Filled.Add, "添加") }
         }
     }
 
-    if (showAddDialog) {
-        AddRoomDialog(
-            onDismiss = { showAddDialog = false },
-            onAdd = { url, platform ->
-                showAddDialog = false
-                scope.launch { viewModel.addRoom(url, platform) }
-            },
-        )
-    }
+    if (showAddDialog) AddRoomDialog(
+        onDismiss = { showAddDialog = false },
+        onAdd = { url, platform -> showAddDialog = false; scope.launch { viewModel.addRoom(url, platform) } },
+    )
 }
 
 @Composable
@@ -86,161 +85,231 @@ fun RoomCard(
     viewModel: MainViewModel,
     scope: androidx.lifecycle.LifecycleCoroutineScope,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var showEditDialog by remember { mutableStateOf(false) }
+    val isThisRoomRecording = viewModel.activeRecordings.collectAsState().value
+        .any { it.roomId == room.roomId && it.isRunning }
+
+    // 脉冲动画
+    val pulseAlpha by rememberInfiniteTransition(label = "pulse").animateFloat(
+        initialValue = 0.4f, targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Restart)
+    )
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // 主行：状态 + 操作
-            Row(modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically) {
-                // 直播状态指示灯
-                Icon(
-                    imageVector = Icons.Filled.Circle,
-                    contentDescription = null,
-                    modifier = Modifier.size(10.dp),
-                    tint = when {
-                        room.isLive -> androidx.compose.ui.graphics.Color(0xFFEF5350)
-                        room.isChecking -> androidx.compose.ui.graphics.Color(0xFFFFC107)
-                        else -> androidx.compose.ui.graphics.Color(0xFF9E9E9E)
-                    },
-                )
-                Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            room.title.ifEmpty { "房间 ${room.roomId}" },
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
-                        )
-                        // 自动录制标记
-                        if (room.autoRecord) {
-                            Text("AUTO", style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    Text("${room.platform} | ${room.uname.ifEmpty { room.roomId }}",
-                        style = MaterialTheme.typography.bodySmall)
-                }
-
-                // 录制按钮
-                if (room.isLive) {
-                    Button(onClick = { scope.launch { viewModel.startRecording(room) } }) {
-                        Icon(Icons.Filled.FiberManualRecord, null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("录制")
-                    }
-                }
-            }
-
-            // 展开/收起控制面板
-            TextButton(onClick = { expanded = !expanded },
-                modifier = Modifier.padding(top = 4.dp)) {
-                Text(
-                    if (expanded) "收起 ▲" else "更多 ▼",
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-
-            if (expanded) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // 检测按钮
-                    OutlinedButton(
-                        onClick = { scope.launch { viewModel.checkRoom(room) } },
-                        modifier = Modifier.weight(1f),
+            // ── 第一行: 头像 + 信息 ──
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 头像 (带开播脉冲环)
+                Box(modifier = Modifier.size(44.dp)) {
+                    // 占位头像 — 显示首字母
+                    Box(
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(2.dp))
-                        Text("检测", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            (room.uname.ifEmpty { room.title.ifEmpty { room.roomId } }).take(1),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
-
-                    // 自动录制开关
-                    FilterChip(
-                        selected = room.autoRecord,
-                        onClick = { viewModel.setRoomAutoRecord(room, !room.autoRecord) },
-                        label = { Text("自动录", style = MaterialTheme.typography.labelSmall) },
-                        leadingIcon = if (room.autoRecord)
-                            { { Icon(Icons.Filled.Check, null, modifier = Modifier.size(14.dp)) } }
-                        else null,
-                    )
-
-                    // 轮询开关
-                    FilterChip(
-                        selected = room.isMonitored,
-                        onClick = { viewModel.setRoomMonitored(room, !room.isMonitored) },
-                        label = { Text("轮询", style = MaterialTheme.typography.labelSmall) },
-                        leadingIcon = if (room.isMonitored)
-                            { { Icon(Icons.Filled.Wifi, null, modifier = Modifier.size(14.dp)) } }
-                        else null,
-                    )
-                }
-
-                // 画质选择
-                Spacer(Modifier.height(8.dp))
-                var qnExpanded by remember { mutableStateOf(false) }
-                val qnLabel = when (room.qn) {
-                    10000 -> "原画"
-                    400 -> "蓝光"
-                    250 -> "超清"
-                    150 -> "高清"
-                    80 -> "流畅"
-                    else -> "${room.qn}"
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("画质: ", style = MaterialTheme.typography.labelSmall)
-                    TextButton(onClick = { qnExpanded = true }) {
-                        Text(qnLabel, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary)
+                    if (room.isLive) {
+                        Box(
+                            modifier = Modifier.fillMaxSize()
+                                .clip(CircleShape)
+                                .border(2.dp, Color.Red.copy(alpha = 1f), CircleShape)
+                        )
+                        Box(
+                            modifier = Modifier.fillMaxSize()
+                                .clip(CircleShape)
+                                .border(3.dp, Color.Red.copy(alpha = pulseAlpha), CircleShape)
+                        )
                     }
                 }
-                if (qnExpanded) {
-                    AlertDialog(
-                        onDismissRequest = { qnExpanded = false },
-                        title = { Text("选择画质") },
-                        text = {
-                            Column {
-                                listOf(10000 to "原画", 400 to "蓝光", 250 to "超清",
-                                       150 to "高清", 80 to "流畅").forEach { (qn, name) ->
-                                    Row(Modifier.fillMaxWidth().padding(4.dp),
-                                        verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(selected = room.qn == qn,
-                                            onClick = { viewModel.setRoomQn(room, qn); qnExpanded = false })
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(name)
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = { TextButton(onClick = { qnExpanded = false }) { Text("关闭") } },
+
+                Spacer(Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        room.title.ifEmpty { "房间 ${room.roomId}" },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "${room.platform} · ${room.uname.ifEmpty { room.roomId }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    )
+                    Text(
+                        "https://live.bilibili.com/${room.roomId}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
 
-                // 状态信息
+                // 直播状态指示
                 if (room.isLive) {
-                    Spacer(Modifier.height(4.dp))
-                    Text("🔴 直播中", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error)
-                } else if (room.isChecking) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.dp)
-                        Spacer(Modifier.width(4.dp))
-                        Text("检测中...", style = MaterialTheme.typography.labelSmall)
+                    Surface(shape = RoundedCornerShape(4.dp),
+                        color = Color.Red.copy(alpha = 0.15f)) {
+                        Text(" LIVE ", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Red, fontWeight = FontWeight.Bold)
                     }
-                } else {
-                    Spacer(Modifier.height(4.dp))
-                    Text("未开播", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // ── 第二行: 控制按钮 ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // 检测
+                SmallButton("检测", onClick = { scope.launch { viewModel.checkRoom(room) } })
+                // 自动录
+                SmallChip("自动录", room.autoRecord,
+                    onClick = { viewModel.setRoomAutoRecord(room, !room.autoRecord) })
+                // 轮询
+                SmallChip("轮询", room.isMonitored,
+                    onClick = { viewModel.setRoomMonitored(room, !room.isMonitored) })
+
+                Spacer(Modifier.weight(1f))
+                // 编辑
+                SmallButton("编辑", onClick = { showEditDialog = true })
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── 第三行: 录制/终止按钮 ──
+            Button(
+                onClick = {
+                    if (isThisRoomRecording) {
+                        val task = viewModel.activeRecordings.value.find {
+                            it.roomId == room.roomId && it.isRunning
+                        }
+                        if (task != null) scope.launch { viewModel.stopRecording(task) }
+                    } else {
+                        if (room.isLive) scope.launch { viewModel.startRecording(room) }
+                        else Toast.makeText(context, "主播未开播", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isThisRoomRecording)
+                        MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primary
+                ),
+            ) {
+                Icon(
+                    if (isThisRoomRecording) Icons.Filled.Stop else Icons.Filled.FiberManualRecord,
+                    null, modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(if (isThisRoomRecording) "终止录制" else "开始录制")
+            }
+
+            // 状态文字
+            if (room.isChecking) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.dp)
+                    Spacer(Modifier.width(6.dp))
+                    Text("检测中...", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
     }
+
+    // 编辑对话框
+    if (showEditDialog) EditRoomDialog(
+        room = room, viewModel = viewModel,
+        onDismiss = { showEditDialog = false },
+    )
+}
+
+@Composable
+fun SmallButton(text: String, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.height(30.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+        Text(text, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+fun SmallChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected, onClick = onClick,
+        modifier = Modifier.height(28.dp),
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+    )
+}
+
+@Composable
+fun EditRoomDialog(
+    room: MainViewModel.RoomItem,
+    viewModel: MainViewModel,
+    onDismiss: () -> Unit,
+) {
+    var title by remember { mutableStateOf(room.title) }
+    var url by remember { mutableStateOf(room.roomId) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑直播间") },
+        text = {
+            Column {
+                OutlinedTextField(value = title, onValueChange = { title = it },
+                    label = { Text("主播备注") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = url, onValueChange = { url = it },
+                    label = { Text("直播间 ID/链接") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(12.dp))
+                // 画质选择
+                Text("画质", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(4.dp))
+                listOf(10000 to "原画", 400 to "蓝光", 250 to "超清", 150 to "高清", 80 to "流畅")
+                    .forEach { (qn, name) ->
+                        Row(Modifier.fillMaxWidth().padding(2.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = room.qn == qn,
+                                onClick = { viewModel.setRoomQn(room, qn) })
+                            // Actually just close and use a callback
+                            Spacer(Modifier.width(6.dp)); Text(name)
+                        }
+                    }
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { showDeleteConfirm = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("删除直播间") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+        dismissButton = null,
+    )
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("确认删除") },
+            text = { Text("删除后录播文件和配置将保留，但不再监测此直播间。") },
+            confirmButton = { Button(onClick = { viewModel.deleteRoom(room); onDismiss(); showDeleteConfirm = false },
+                colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error)) { Text("删除") } },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") } },
+        )
+    }
+}
+
+fun buildFaceUrl(room: MainViewModel.RoomItem): String {
+    // 暂时用占位头像 — TODO: 从 API 获取真实头像
+    return ""
 }
 
 @Composable
@@ -256,29 +325,19 @@ fun AddRoomDialog(
         title = { Text("添加直播间") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
+                OutlinedTextField(value = url, onValueChange = { url = it },
                     label = { Text("直播间链接或房间号") },
                     placeholder = { Text("https://live.bilibili.com/12345") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("bilibili" to "B站", "douyin" to "抖音").forEach { (key, label) ->
-                        FilterChip(
-                            selected = platform == key,
-                            onClick = { platform = key },
-                            label = { Text(label) },
-                        )
+                    listOf("bilibili" to "B站", "douyin" to "抖音").forEach { (k, l) ->
+                        FilterChip(selected = platform == k, onClick = { platform = k }, label = { Text(l) })
                     }
                 }
             }
         },
-        confirmButton = {
-            Button(onClick = { onAdd(url, platform) }, enabled = url.isNotBlank()) { Text("添加") }
-        },
+        confirmButton = { Button(onClick = { onAdd(url, platform) }, enabled = url.isNotBlank()) { Text("添加") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }

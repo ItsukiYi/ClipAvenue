@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     platform TEXT NOT NULL DEFAULT 'bilibili',
     title TEXT DEFAULT '',
     uname TEXT DEFAULT '',
+    face_url TEXT DEFAULT '',
     cover_url TEXT DEFAULT '',
     last_checked INTEGER DEFAULT 0,
     is_live INTEGER DEFAULT 0,
