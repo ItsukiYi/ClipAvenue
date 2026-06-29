@@ -173,6 +173,11 @@ class MainViewModel : ViewModel() {
                 updateRoom(room.copy(title = title.ifEmpty { "房间 ${room.roomId}" }, uname = uname, isLive = live, isChecking = false))
                 if (title.isNotEmpty()) PythonBridge.dbUpdateRoom(room.roomId, room.platform, title, uname, if (live) 1 else 0)
                 addLog("${room.roomId}: ${if (live) "🔴 直播中" else "未开播"} $title")
+                // 检测到开播 + 自动录制 → 立刻开始
+                if (live && room.autoRecord && !_tasks.value.any { it.roomId == room.roomId && it.isRunning }) {
+                    addLog("🔴 开播: ${title.ifEmpty { room.roomId }} → 自动录制")
+                    startRecording(room)
+                }
             } catch (e: Exception) { updateRoom(room.copy(isChecking = false)); addLog("检测失败: ${e.message}") }
         }
     }

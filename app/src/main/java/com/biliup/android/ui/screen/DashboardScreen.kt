@@ -229,11 +229,19 @@ fun RecordingCard(
                     }
                     // 系统播放器
                     OutlinedButton(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(Uri.fromFile(File(task.filePath)), "video/*")
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        val f = File(task.filePath)
+                        if (!f.exists()) {
+                            android.widget.Toast.makeText(context, "文件不存在: ${task.filePath}", android.widget.Toast.LENGTH_LONG).show()
+                            return@OutlinedButton
                         }
-                        context.startActivity(intent)
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(Uri.fromFile(f), "video/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        try { context.startActivity(intent) }
+                        catch (_: Exception) {
+                            android.widget.Toast.makeText(context, "无可用播放器, 路径: ${task.filePath}", android.widget.Toast.LENGTH_LONG).show()
+                        }
                     }) {
                         Icon(Icons.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))

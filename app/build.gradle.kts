@@ -90,6 +90,7 @@ dependencies {
     // Media3 ExoPlayer (for built-in FLV preview)
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
+    implementation("androidx.media3:media3-extractor:1.3.1")
 
     // QR code generation
     implementation("com.google.zxing:core:3.5.3")

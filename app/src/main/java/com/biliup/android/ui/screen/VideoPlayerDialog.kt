@@ -28,17 +28,28 @@ fun VideoPlayerDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val file = remember { File(filePath) }
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = true
-        }
+        ExoPlayer.Builder(context).build().apply { playWhenReady = true }
     }
 
     DisposableEffect(Unit) {
-        val uri = Uri.fromFile(File(filePath))
-        exoPlayer.setMediaItem(MediaItem.fromUri(uri))
-        exoPlayer.prepare()
+        if (file.exists()) {
+            val uri = Uri.fromFile(file)
+            exoPlayer.setMediaItem(MediaItem.fromUri(uri))
+            exoPlayer.prepare()
+        }
         onDispose { exoPlayer.release() }
+    }
+
+    if (!file.exists()) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("文件不存在") },
+            text = { Text("路径: $filePath\n大小: ${file.length()} bytes") },
+            confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+        )
+        return
     }
 
     Dialog(
