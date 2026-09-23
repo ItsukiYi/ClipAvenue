@@ -1,0 +1,12 @@
+# Python 运行依赖(clipavenue 独立环境)
+faster-whisper
+huggingface_hub<0.27
+anthropic
+fastapi
+uvicorn
+pyyaml
+opencc-python-reimplemented
+requests
+
+# 剪映草稿生成(vendor/pyJianYingDraft,本地安装: pip install ./vendor/pyJianYingDraft)
+# -e ./vendor/pyJianYingDraft

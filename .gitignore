@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+vendor/pyjd-venv/
+node_modules/
+*.log
+.DS_Store
+
+# 运行时产物
+projects/
+*.db-shm
+*.db-wal
+
+# 个人直播语料(本地保留,不进公开仓库)
+training/
+
+# 与项目无关的本地杂项(不进入公开仓库)
+transcribe.exe_extracted/
+ds-harness-remote-fix/
+dsh-retry-boost-fix/

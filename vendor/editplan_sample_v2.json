@@ -1,0 +1,15 @@
+{
+  "name": "AI细剪流水线V2-20260922",
+  "canvas": {"width": 1080, "height": 1920, "fps": 30, "ratio": "9:16"},
+  "mode": "materialized",
+  "clips": [
+    {"path": "D:/OpenMontage/vendor/test_with_gaps/clips/seg1.mp4", "label": "seg1", "duration": 8.1},
+    {"path": "D:/OpenMontage/vendor/test_with_gaps/clips/seg2.mp4", "label": "seg2", "duration": 8.2},
+    {"path": "D:/OpenMontage/vendor/test_with_gaps/clips/seg3.mp4", "label": "seg3", "duration": 6.1}
+  ],
+  "subtitles": [
+    {"text": "班主任讲了个趣事", "start": 0.0, "duration": 3.0},
+    {"text": "空气安静了三秒", "start": 8.4, "duration": 3.0},
+    {"text": "话题一转聊到别的事", "start": 16.5, "duration": 4.0}
+  ]
+}
